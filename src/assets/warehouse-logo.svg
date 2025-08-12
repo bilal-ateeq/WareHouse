@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200px" height="200px" viewBox="0 0 200 200" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <title>Warehouse Stock Management Logo</title>
+    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect fill="#FFFFFF" x="0" y="0" width="200" height="200"></rect>
+        <g transform="translate(20.000000, 25.000000)">
+            <!-- Warehouse Building -->
+            <polygon fill="#4A6CF7" points="80 0 160 45 160 150 0 150 0 45"></polygon>
+            <polygon fill="#3A56D4" points="80 0 80 55 160 55 160 45"></polygon>
+            <rect fill="#FFFFFF" x="20" y="70" width="30" height="30"></rect>
+            <rect fill="#FFFFFF" x="65" y="70" width="30" height="30"></rect>
+            <rect fill="#FFFFFF" x="110" y="70" width="30" height="30"></rect>
+            <rect fill="#FFFFFF" x="40" y="120" width="40" height="30"></rect>
+            <rect fill="#28C76F" x="80" y="120" width="40" height="30"></rect>
+            
+            <!-- Boxes/Inventory -->
+            <rect fill="#FF9F43" x="50" y="110" width="20" height="20"></rect>
+            <rect fill="#EA5455" x="90" y="110" width="20" height="20"></rect>
+            <rect fill="#00CFE8" x="130" y="110" width="20" height="20"></rect>
+            
+            <!-- Door -->
+            <rect fill="#FFFFFF" x="65" y="110" width="30" height="40"></rect>
+            <rect fill="#3A56D4" x="65" y="110" width="30" height="5"></rect>
+        </g>
+    </g>
+</svg>
