@@ -98,8 +98,7 @@ function Login() {
         
         <div className="auth-footer">
           <p>
-            Don't have an account?{" "}
-            <Link to="/register">Create an account</Link>
+            Need access? Contact your administrator to create an account.
           </p>
         </div>
       </div>

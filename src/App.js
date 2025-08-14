@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import ProductDetails from "./pages/ProductDetails";
+import CreateUser from "./pages/CreateUser";
+import UserManagement from "./pages/UserManagement";
 import RequestRolePage from "./pages/RequestRolePage";
 import RoleRequestsPage from "./pages/RoleRequestsPage";
 import { auth } from "./firebase";
@@ -69,12 +71,30 @@ function App() {
           element={user ? <Navigate to="/dashboard" /> : <Login />}
         />
         <Route
-          path="/register"
-          element={user ? <Navigate to="/dashboard" /> : <Register />}
-        />
-        <Route
           path="/dashboard"
           element={<ProtectedRoute element={<Dashboard />} />}
+        />
+        <Route
+          path="/product/:productId"
+          element={<ProtectedRoute element={<ProductDetails />} />}
+        />
+        <Route
+          path="/admin/user-management"
+          element={
+            <ProtectedRoute
+              element={<UserManagement />}
+              requiredRole="admin"
+            />
+          }
+        />
+        <Route
+          path="/admin/create-user"
+          element={
+            <ProtectedRoute
+              element={<CreateUser />}
+              requiredRole="admin"
+            />
+          }
         />
         <Route
           path="/request-role"
