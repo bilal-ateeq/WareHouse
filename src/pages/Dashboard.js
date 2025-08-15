@@ -26,6 +26,7 @@ function Dashboard() {
   const [modelNo, setModelNo] = useState("");
   const [warehouse, setWarehouse] = useState("");
   const [quantity, setQuantity] = useState(0);
+  const [category, setCategory] = useState("auto"); // Changed default to auto
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -167,6 +168,7 @@ function Dashboard() {
         modelNo,
         warehouse,
         quantity: parseInt(quantity),
+        category, // Include category in the product data
         createdAt: serverTimestamp(),
       });
       
@@ -178,6 +180,7 @@ function Dashboard() {
       setModelNo("");
       setWarehouse("");
       setQuantity(0);
+      setCategory("auto"); // Reset category to auto (default)
       
       showToast(`Product "${name}" has been added successfully!`, "success");
     } catch (error) {
@@ -260,44 +263,130 @@ function Dashboard() {
 
   const warehouseOptions = [...new Set(products.map((p) => p.warehouse))];
 
-  // Group products by name and part number to show totals
-  const groupedProducts = products.reduce((acc, product) => {
-    // Skip products with missing required fields
-    if (!product.name || !product.partNumber) {
-      return acc;
-    }
-    
-    const key = `${product.name.toLowerCase()}_${product.partNumber.toLowerCase()}`;
-    
-    if (!acc[key]) {
-      acc[key] = {
-        id: product.id, // Use first product's ID for navigation
-        name: product.name,
-        partNumber: product.partNumber,
-        totalQuantity: 0,
-        warehouses: []
-      };
-    }
-    
-    acc[key].totalQuantity += (product.quantity || 0);
-    acc[key].warehouses.push({
-      id: product.id,
-      modelNo: product.modelNo || 'N/A',
-      warehouse: product.warehouse || 'Unknown',
-      quantity: product.quantity || 0
-    });
-    
-    return acc;
-  }, {});
+  // Group products by name, part number, and category to show totals
+  const groupProductsByCategory = (category) => {
+    return products
+      .filter(product => (product.category || 'auto') === category) // Default to 'auto' for existing products
+      .reduce((acc, product) => {
+        // Skip products with missing required fields
+        if (!product.name || !product.partNumber) {
+          return acc;
+        }
+        
+        const key = `${product.name.toLowerCase()}_${product.partNumber.toLowerCase()}`;
+        
+        if (!acc[key]) {
+          acc[key] = {
+            id: product.id, // Use first product's ID for navigation
+            name: product.name,
+            partNumber: product.partNumber,
+            category: product.category || 'auto',
+            totalQuantity: 0,
+            warehouses: []
+          };
+        }
+        
+        acc[key].totalQuantity += (product.quantity || 0);
+        acc[key].warehouses.push({
+          id: product.id,
+          modelNo: product.modelNo || 'N/A',
+          warehouse: product.warehouse || 'Unknown',
+          quantity: product.quantity || 0
+        });
+        
+        return acc;
+      }, {});
+  };
 
-  const aggregatedProducts = Object.values(groupedProducts);
+  // Get filtered products by category
+  const getFilteredProductsByCategory = (category) => {
+    const groupedProducts = groupProductsByCategory(category);
+    const aggregatedProducts = Object.values(groupedProducts);
+    
+    return aggregatedProducts.filter((p) => {
+      const matchesSearch =
+        (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.partNumber && p.partNumber.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesWarehouse = !warehouseFilter || 
+        p.warehouses.some(w => w.warehouse === warehouseFilter);
+      
+      return matchesSearch && matchesWarehouse;
+    }).sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically by name
+  };
 
-  const filteredProducts = aggregatedProducts.filter((p) => {
-    const matchesSearch =
-      (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.partNumber && p.partNumber.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesSearch;
-  }).sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically by name
+  const glassProducts = getFilteredProductsByCategory('glass');
+  const autoProducts = getFilteredProductsByCategory('auto');
+
+  // Render product table
+  const renderProductTable = (products, categoryTitle) => (
+    <div className="mb-4">
+      <h3 className="mb-3 text-primary">{categoryTitle}</h3>
+      <div className="table-responsive">
+        <table className="table table-striped table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Part Number</th>
+              <th>Total Quantity</th>
+              {(role === "admin" || role === "manager") && <th>Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan={(role === "admin" || role === "manager") ? 4 : 3} className="text-center text-muted">
+                  No {categoryTitle.toLowerCase()} products found
+                </td>
+              </tr>
+            ) : (
+              products.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <button 
+                      className="btn btn-link p-0 text-start text-decoration-none"
+                      onClick={() => navigate(`/product/${p.id}`)}
+                      style={{ color: "#0056b3", fontWeight: "500" }}
+                    >
+                      {p.name}
+                    </button>
+                  </td>
+                  <td>{p.partNumber}</td>
+                  <td>
+                    <span className={`${p.totalQuantity <= 0 ? 'text-danger' : p.totalQuantity < 10 ? 'text-warning' : 'text-success'}`}>
+                      {p.totalQuantity}
+                    </span>
+                  </td>
+                  {(role === "admin" || role === "manager") && (
+                    <td>
+                      <button 
+                        className="btn btn-sm btn-danger"
+                        onClick={() => deleteProduct(p.warehouses[0].id, p.name)}
+                        disabled={deletingProductId === p.warehouses[0].id}
+                        title="Delete product permanently"
+                      >
+                        {deletingProductId === p.warehouses[0].id ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-trash me-1"></i>
+                            Delete
+                          </>
+                        )}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -443,6 +532,21 @@ function Dashboard() {
                     />
                   </div>
                 </div>
+                <div className="row mt-3">
+                  <div className="col-md-4 form-group">
+                    <label htmlFor="productCategory">Category</label>
+                    <select
+                      id="productCategory"
+                      className="form-select"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      required
+                    >
+                      <option value="glass">Glass</option>
+                      <option value="auto">Auto Parts</option>
+                    </select>
+                  </div>
+                </div>
                 <button type="submit" className="btn btn-primary mt-3">Add Product</button>
               </form>
             </div>
@@ -477,62 +581,9 @@ function Dashboard() {
               </div>
             </div>
 
-            {/* Product List - All users can see this */}
-            <div className="table-responsive">
-              <table className="table table-striped table-hover">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Part Number</th>
-                    <th>Total Quantity</th>
-                    {(role === "admin" || role === "manager") && <th>Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <button 
-                          className="btn btn-link p-0 text-start text-decoration-none"
-                          onClick={() => navigate(`/product/${p.id}`)}
-                          style={{ color: "#0056b3", fontWeight: "500" }}
-                        >
-                          {p.name}
-                        </button>
-                      </td>
-                      <td>{p.partNumber}</td>
-                      <td>
-                        <span className={`${p.totalQuantity <= 0 ? 'text-danger' : p.totalQuantity < 10 ? 'text-warning' : 'text-success'}`}>
-                          {p.totalQuantity}
-                        </span>
-                      </td>
-                      {(role === "admin" || role === "manager") && (
-                        <td>
-                          <button 
-                            className="btn btn-sm btn-danger"
-                            onClick={() => deleteProduct(p.warehouses[0].id, p.name)}
-                            disabled={deletingProductId === p.warehouses[0].id}
-                            title="Delete product permanently"
-                          >
-                            {deletingProductId === p.warehouses[0].id ? (
-                              <>
-                                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                Deleting...
-                              </>
-                            ) : (
-                              <>
-                                <i className="bi bi-trash me-1"></i>
-                                Delete
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {/* Product Inventory with Glass and Auto Parts sections */}
+            {renderProductTable(glassProducts, "Glass Products")}
+            {renderProductTable(autoProducts, "Auto Parts")}
           </div>
 
           {/* Stock Activity History - All users can see this */}
