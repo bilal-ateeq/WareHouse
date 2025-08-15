@@ -322,7 +322,7 @@ function Dashboard() {
               <i className="bi bi-list"></i>
             </button>
             <div>
-              <h1 className="dashboard-title mb-0">Warehouse Dashboard</h1>
+              <h1 className="dashboard-title mb-0">Nadeem Brothers Glass House & Auto Lights</h1>
               <p className="mt-1 mb-0 text-muted">Logged in as: <strong>{role || "No role assigned"}</strong></p>
             </div>
           </div>
