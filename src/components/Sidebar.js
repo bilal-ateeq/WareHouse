@@ -14,6 +14,12 @@ const Sidebar = ({ role, isOpen, onToggle }) => {
       roles: ['admin', 'manager', 'viewer']
     },
     {
+      path: '/sales',
+      icon: 'bi-cart3',
+      label: 'Sales',
+      roles: ['admin', 'manager']
+    },
+    {
       path: '/admin/user-management',
       icon: 'bi-people',
       label: 'User Management',

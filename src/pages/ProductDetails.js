@@ -66,7 +66,7 @@ function ProductDetails() {
           const matchingProducts = allProducts.filter(p => 
             p.name.toLowerCase() === referenceProduct.name.toLowerCase() &&
             p.partNumber.toLowerCase() === referenceProduct.partNumber.toLowerCase()
-          );
+          ).sort((a, b) => a.warehouse.localeCompare(b.warehouse)); // Sort by warehouse alphabetically
           setProducts(matchingProducts);
           setProductName(referenceProduct.name);
           setPartNumber(referenceProduct.partNumber);

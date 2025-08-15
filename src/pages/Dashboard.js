@@ -297,7 +297,7 @@ function Dashboard() {
       (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.partNumber && p.partNumber.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesSearch;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically by name
 
   return (
     <>

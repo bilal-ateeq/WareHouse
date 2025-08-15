@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import ProductDetails from "./pages/ProductDetails";
 import CreateUser from "./pages/CreateUser";
 import UserManagement from "./pages/UserManagement";
+import Sales from "./pages/Sales";
 import RequestRolePage from "./pages/RequestRolePage";
 import RoleRequestsPage from "./pages/RoleRequestsPage";
 import { auth } from "./firebase";
@@ -73,6 +74,10 @@ function App() {
         <Route
           path="/dashboard"
           element={<ProtectedRoute element={<Dashboard />} />}
+        />
+        <Route
+          path="/sales"
+          element={<ProtectedRoute element={<Sales />} />}
         />
         <Route
           path="/product/:productId"
