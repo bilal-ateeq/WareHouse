@@ -20,6 +20,18 @@ const Sidebar = ({ role, isOpen, onToggle }) => {
       roles: ['admin', 'manager']
     },
     {
+      path: '/stock-history',
+      icon: 'bi-clock-history',
+      label: 'Stock Activity History',
+      roles: ['admin', 'manager', 'viewer']
+    },
+    {
+      path: '/sales-history',
+      icon: 'bi-graph-up',
+      label: 'Sales Activity History',
+      roles: ['admin', 'manager', 'viewer']
+    },
+    {
       path: '/admin/user-management',
       icon: 'bi-people',
       label: 'User Management',

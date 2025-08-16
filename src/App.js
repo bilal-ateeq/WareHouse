@@ -6,6 +6,9 @@ import ProductDetails from "./pages/ProductDetails";
 import CreateUser from "./pages/CreateUser";
 import UserManagement from "./pages/UserManagement";
 import Sales from "./pages/Sales";
+import StockHistory from "./pages/StockHistory";
+import SalesHistory from "./pages/SalesHistory";
+import InvoiceDetails from "./pages/InvoiceDetails";
 import RequestRolePage from "./pages/RequestRolePage";
 import RoleRequestsPage from "./pages/RoleRequestsPage";
 import { auth } from "./firebase";
@@ -113,6 +116,18 @@ function App() {
               requiredRole="admin"
             />
           }
+        />
+        <Route
+          path="/stock-history"
+          element={<ProtectedRoute element={<StockHistory />} />}
+        />
+        <Route
+          path="/sales-history"
+          element={<ProtectedRoute element={<SalesHistory />} />}
+        />
+        <Route
+          path="/invoice/:invoiceId"
+          element={<ProtectedRoute element={<InvoiceDetails />} />}
         />
       </Routes>
     </Router>

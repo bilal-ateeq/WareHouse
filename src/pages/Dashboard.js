@@ -35,7 +35,6 @@ function Dashboard() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [warehouseFilter, setWarehouseFilter] = useState("");
-  const [history, setHistory] = useState([]);
 
   const [role, setRole] = useState("");
   
@@ -107,19 +106,6 @@ function Dashboard() {
       const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setProducts(items);
     });
-    return unsubscribe;
-  }, []);
-
-  // Real-time listener for stock history
-  useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, "stock_history"),
-      (snapshot) => {
-        const logs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        logs.sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds);
-        setHistory(logs);
-      }
-    );
     return unsubscribe;
   }, []);
 
@@ -584,45 +570,6 @@ function Dashboard() {
             {/* Product Inventory with Glass and Auto Parts sections */}
             {renderProductTable(glassProducts, "Glass Products")}
             {renderProductTable(autoProducts, "Auto Parts")}
-          </div>
-
-          {/* Stock Activity History - All users can see this */}
-          <div className="dashboard-card">
-            <div className="dashboard-header mb-4">
-              <h2 className="dashboard-title">Stock Activity History</h2>
-            </div>
-            <div className="table-responsive">
-              <table className="table table-striped table-hover">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Part Number</th>
-                    <th>Model No</th>
-                    <th>Warehouse</th>
-                    <th>Change</th>
-                    <th>User</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((log) => (
-                    <tr key={log.id}>
-                      <td>{log.productName}</td>
-                      <td>{log.partNumber}</td>
-                      <td>{log.modelNo}</td>
-                      <td>{log.warehouse}</td>
-                      <td>
-                        <span className={(String(log.change).includes('+') ? 'text-success' : 'text-danger')}>
-                          {log.change}
-                        </span>
-                      </td>
-                      <td>{log.user}</td>
-                      <td>{log.timestamp?.toDate().toLocaleString() || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
       </div>

@@ -56,6 +56,36 @@ function Sales() {
     setSidebarOpen(!sidebarOpen);
   };
 
+  // Generate sequential invoice number starting from 1000
+  const generateInvoiceNumber = async () => {
+    try {
+      // Get all invoices to find the highest invoice number
+      const invoicesSnapshot = await onSnapshot(collection(db, "invoices"), () => {});
+      const invoices = [];
+      
+      // Use a promise to get the data synchronously
+      return new Promise((resolve) => {
+        const unsubscribe = onSnapshot(collection(db, "invoices"), (snapshot) => {
+          const invoiceNumbers = snapshot.docs
+            .map(doc => doc.data().invoiceNumber)
+            .filter(num => typeof num === 'string' && num.startsWith('INV-'))
+            .map(num => parseInt(num.replace('INV-', '')))
+            .filter(num => !isNaN(num));
+          
+          const highestNumber = invoiceNumbers.length > 0 ? Math.max(...invoiceNumbers) : 999;
+          const nextNumber = highestNumber + 1;
+          
+          unsubscribe(); // Clean up the listener
+          resolve(`INV-${nextNumber}`);
+        });
+      });
+    } catch (error) {
+      console.error("Error generating invoice number:", error);
+      // Fallback to timestamp-based number
+      return `INV-${Date.now()}`;
+    }
+  };
+
   // Fetch user role and check permissions
   useEffect(() => {
     const checkPermissions = async () => {
@@ -192,7 +222,9 @@ function Sales() {
     }
 
     const warehouseData = availableWarehouses.find(w => w.warehouse === selectedWarehouse);
-    const itemTotal = parseFloat(salePrice) * parseInt(saleQuantity);
+    const quantity = parseInt(saleQuantity);
+    const unitPrice = parseFloat(salePrice);
+    const itemTotal = unitPrice * quantity;
     
     const newItem = {
       id: Date.now() + Math.random(), // Temporary ID for cart
@@ -201,8 +233,8 @@ function Sales() {
       partNumber: selectedProduct.match(/\(([^)]+)\)/)[1], // Extract part number
       modelNo: selectedModel,
       warehouse: selectedWarehouse,
-      quantity: parseInt(saleQuantity),
-      unitPrice: parseFloat(salePrice),
+      quantity: quantity,
+      unitPrice: unitPrice,
       total: itemTotal,
       maxAvailable: maxQuantity
     };
@@ -262,7 +294,7 @@ function Sales() {
         
         updates.push(updateDoc(productRef, { quantity: newQuantity }));
         
-        // Create stock log entry
+        // Create stock log entry for inventory reduction
         stockLogs.push(addDoc(collection(db, "stock_history"), {
           productName: item.name,
           partNumber: item.partNumber,
@@ -277,18 +309,20 @@ function Sales() {
       // Execute all updates
       await Promise.all([...updates, ...stockLogs]);
 
-      // Create invoice data
+      // Create invoice data with proper invoice numbering
+      const invoiceNumber = await generateInvoiceNumber();
       const invoice = {
-        invoiceNumber: `INV-${Date.now()}`,
+        invoiceNumber: invoiceNumber,
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString(),
         items: saleItems,
-        total: saleItems.length, // Total items (you can add pricing later)
+        totalItems: saleItems.reduce((sum, item) => sum + item.quantity, 0),
+        totalAmount: saleItems.reduce((sum, item) => sum + item.total, 0),
         generatedBy: auth.currentUser?.email || "Unknown"
       };
 
       // Save invoice to database
-      await addDoc(collection(db, "invoices"), {
+      const invoiceRef = await addDoc(collection(db, "invoices"), {
         ...invoice,
         timestamp: serverTimestamp()
       });
