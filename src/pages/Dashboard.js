@@ -13,6 +13,7 @@ import {
   deleteDoc
 } from "firebase/firestore";
 import { getPendingRoleRequests } from "../services/roleService";
+import cloudinaryService from "../services/cloudinaryService";
 import Toast from "../components/Toast";
 import Sidebar from "../components/Sidebar";
 import "../styles/global.css";
@@ -27,6 +28,9 @@ function Dashboard() {
   const [warehouse, setWarehouse] = useState("");
   const [quantity, setQuantity] = useState(0);
   const [category, setCategory] = useState("auto"); // Changed default to auto
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -148,13 +152,34 @@ function Dashboard() {
     }
     
     try {
+      let imageUrl = null;
+      let imagePublicId = null;
+      
+      // Upload image to Cloudinary if selected
+      if (selectedImage) {
+        setUploadingImage(true);
+        const uploadResult = await cloudinaryService.uploadImage(selectedImage);
+        
+        if (!uploadResult.success) {
+          showToast(`Error uploading image: ${uploadResult.error}`, "error");
+          setUploadingImage(false);
+          return;
+        }
+        
+        imageUrl = uploadResult.url;
+        imagePublicId = uploadResult.publicId;
+        setUploadingImage(false);
+      }
+      
       await addDoc(collection(db, "products"), {
         name,
         partNumber,
         modelNo,
         warehouse,
         quantity: parseInt(quantity),
-        category, // Include category in the product data
+        category,
+        imageUrl,
+        imagePublicId,
         createdAt: serverTimestamp(),
       });
       
@@ -166,13 +191,50 @@ function Dashboard() {
       setModelNo("");
       setWarehouse("");
       setQuantity(0);
-      setCategory("auto"); // Reset category to auto (default)
+      setCategory("auto");
+      setSelectedImage(null);
+      setImagePreview(null);
       
       showToast(`Product "${name}" has been added successfully!`, "success");
     } catch (error) {
       console.error("Error adding product:", error);
       showToast(`Error adding product: ${error.message}`, "error");
+    } finally {
+      setUploadingImage(false);
     }
+  };
+
+  // Handle image selection
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        showToast("Please select an image file", "error");
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("Image size should be less than 5MB", "error");
+        return;
+      }
+      
+      setSelectedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Remove selected image
+  const removeSelectedImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   // Update quantity
@@ -305,13 +367,14 @@ function Dashboard() {
   const autoProducts = getFilteredProductsByCategory('auto');
 
   // Render product table
-  const renderProductTable = (products, categoryTitle) => (
+  const renderProductTable = (groupedProducts, categoryTitle) => (
     <div className="mb-4">
       <h3 className="mb-3 text-primary">{categoryTitle}</h3>
       <div className="table-responsive">
         <table className="table table-striped table-hover">
           <thead>
             <tr>
+              <th>Image</th>
               <th>Name</th>
               <th>Part Number</th>
               <th>Total Quantity</th>
@@ -319,54 +382,101 @@ function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {products.length === 0 ? (
+            {groupedProducts.length === 0 ? (
               <tr>
-                <td colSpan={(role === "admin" || role === "manager") ? 4 : 3} className="text-center text-muted">
+                <td colSpan={(role === "admin" || role === "manager") ? 5 : 4} className="text-center text-muted">
                   No {categoryTitle.toLowerCase()} products found
                 </td>
               </tr>
             ) : (
-              products.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <button 
-                      className="btn btn-link p-0 text-start text-decoration-none"
-                      onClick={() => navigate(`/product/${p.id}`)}
-                      style={{ color: "#0056b3", fontWeight: "500" }}
-                    >
-                      {p.name}
-                    </button>
-                  </td>
-                  <td>{p.partNumber}</td>
-                  <td>
-                    <span className={`${p.totalQuantity <= 0 ? 'text-danger' : p.totalQuantity < 10 ? 'text-warning' : 'text-success'}`}>
-                      {p.totalQuantity}
-                    </span>
-                  </td>
-                  {(role === "admin" || role === "manager") && (
+              groupedProducts.map((p) => {
+                // Find the first product with an image for this grouped item
+                const productWithImage = products.find(product => 
+                  product.name && p.name &&
+                  product.partNumber && p.partNumber &&
+                  product.name.toLowerCase() === p.name.toLowerCase() &&
+                  product.partNumber.toLowerCase() === p.partNumber.toLowerCase() &&
+                  product.imageUrl && product.imageUrl.trim() !== ''
+                );
+                
+                return (
+                  <tr key={p.id}>
+                    <td style={{ width: "80px" }}>
+                      {productWithImage?.imageUrl ? (
+                        <img
+                          src={productWithImage.imageUrl}
+                          alt={p.name}
+                          style={{ 
+                            width: "60px", 
+                            height: "60px", 
+                            objectFit: "cover",
+                            border: "1px solid #ddd",
+                            borderRadius: "4px",
+                            cursor: "pointer"
+                          }}
+                          title={`Click to view ${p.name} details`}
+                          onClick={() => navigate(`/product/${p.id}`)}
+                        />
+                      ) : (
+                        <div 
+                          style={{ 
+                            width: "60px", 
+                            height: "60px", 
+                            backgroundColor: "#f8f9fa",
+                            border: "1px solid #ddd",
+                            borderRadius: "4px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer"
+                          }}
+                          title={`Click to view ${p.name} details`}
+                          onClick={() => navigate(`/product/${p.id}`)}
+                        >
+                          <i className="bi bi-image text-muted" style={{ fontSize: "1.5rem" }}></i>
+                        </div>
+                      )}
+                    </td>
                     <td>
                       <button 
-                        className="btn btn-sm btn-danger"
-                        onClick={() => deleteProduct(p.warehouses[0].id, p.name)}
-                        disabled={deletingProductId === p.warehouses[0].id}
-                        title="Delete product permanently"
+                        className="btn btn-link p-0 text-start text-decoration-none"
+                        onClick={() => navigate(`/product/${p.id}`)}
+                        style={{ color: "#0056b3", fontWeight: "500" }}
                       >
-                        {deletingProductId === p.warehouses[0].id ? (
-                          <>
-                            <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                            Deleting...
-                          </>
-                        ) : (
-                          <>
-                            <i className="bi bi-trash me-1"></i>
-                            Delete
-                          </>
-                        )}
+                        {p.name}
                       </button>
                     </td>
-                  )}
-                </tr>
-              ))
+                    <td>{p.partNumber}</td>
+                    <td>
+                      <span className={`${p.totalQuantity <= 0 ? 'text-danger' : p.totalQuantity < 10 ? 'text-warning' : 'text-success'}`}>
+                        {p.totalQuantity}
+                      </span>
+                    </td>
+                    {(role === "admin" || role === "manager") && (
+                      <td>
+                        <button 
+                          className="btn btn-sm btn-danger"
+                          onClick={() => deleteProduct(p.warehouses[0].id, p.name)}
+                          disabled={deletingProductId === p.warehouses[0].id}
+                          title="Delete product permanently"
+                        >
+                          {deletingProductId === p.warehouses[0].id ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <i className="bi bi-trash me-1"></i>
+                              Delete
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -532,8 +642,55 @@ function Dashboard() {
                       <option value="auto">Auto Parts</option>
                     </select>
                   </div>
+                  <div className="col-md-8 form-group">
+                    <label htmlFor="productImage">Product Image (Optional)</label>
+                    <input
+                      id="productImage"
+                      type="file"
+                      className="form-control"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                    />
+                    <small className="form-text text-muted">
+                      Maximum file size: 5MB. Supported formats: JPG, PNG, GIF
+                    </small>
+                    {imagePreview && (
+                      <div className="mt-3">
+                        <div className="d-flex align-items-start gap-3">
+                          <img
+                            src={imagePreview}
+                            alt="Selected product"
+                            style={{ 
+                              maxWidth: "150px", 
+                              maxHeight: "150px", 
+                              objectFit: "cover",
+                              border: "1px solid #ddd",
+                              borderRadius: "4px"
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={removeSelectedImage}
+                          >
+                            <i className="bi bi-trash me-1"></i>
+                            Remove Image
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <button type="submit" className="btn btn-primary mt-3">Add Product</button>
+                <button type="submit" className="btn btn-primary mt-3" disabled={uploadingImage}>
+                  {uploadingImage ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                      Uploading...
+                    </>
+                  ) : (
+                    "Add Product"
+                  )}
+                </button>
               </form>
             </div>
           )}

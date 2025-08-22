@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { doc, getDoc, updateDoc, serverTimestamp, addDoc, collection, onSnapshot } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import cloudinaryService from "../services/cloudinaryService";
 import Toast from "../components/Toast";
 import "../styles/global.css";
 
@@ -22,6 +23,12 @@ function ProductDetails() {
   const [addQuantities, setAddQuantities] = useState({});
   const [replaceQuantities, setReplaceQuantities] = useState({});
   const [reduceQuantities, setReduceQuantities] = useState({});
+  
+  // Image management states
+  const [editingImage, setEditingImage] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
   // Product info
   const [productName, setProductName] = useState("");
@@ -189,6 +196,114 @@ function ProductDetails() {
     }
   };
 
+  // Handle image selection
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        showToast("Please select an image file", "error");
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showToast("Image size should be less than 5MB", "error");
+        return;
+      }
+      
+      setSelectedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Cancel image editing
+  const cancelImageEdit = () => {
+    setEditingImage(false);
+    setSelectedImage(null);
+    setImagePreview(null);
+  };
+
+  // Update product image
+  const updateProductImage = async () => {
+    if (!selectedImage) {
+      showToast("Please select an image first", "error");
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      // Upload new image to Cloudinary
+      const uploadResult = await cloudinaryService.uploadImage(selectedImage);
+      
+      if (!uploadResult.success) {
+        showToast(`Error uploading image: ${uploadResult.error}`, "error");
+        setUploadingImage(false);
+        return;
+      }
+
+      // Update all products with the same name and part number
+      const updatePromises = products.map(async (product) => {
+        const productRef = doc(db, "products", product.id);
+        await updateDoc(productRef, {
+          imageUrl: uploadResult.url,
+          imagePublicId: uploadResult.publicId,
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      await Promise.all(updatePromises);
+
+      // Reset editing state
+      setEditingImage(false);
+      setSelectedImage(null);
+      setImagePreview(null);
+      setUploadingImage(false);
+
+      showToast("Product image updated successfully!", "success");
+    } catch (error) {
+      console.error("Error updating image:", error);
+      showToast(`Error updating image: ${error.message}`, "error");
+      setUploadingImage(false);
+    }
+  };
+
+  // Remove product image
+  const removeProductImage = async () => {
+    const confirmRemove = window.confirm("Are you sure you want to remove the product image?");
+    if (!confirmRemove) return;
+
+    setUploadingImage(true);
+
+    try {
+      // Update all products with the same name and part number to remove image
+      const updatePromises = products.map(async (product) => {
+        const productRef = doc(db, "products", product.id);
+        await updateDoc(productRef, {
+          imageUrl: null,
+          imagePublicId: null,
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      await Promise.all(updatePromises);
+
+      setUploadingImage(false);
+      showToast("Product image removed successfully!", "success");
+    } catch (error) {
+      console.error("Error removing image:", error);
+      showToast(`Error removing image: ${error.message}`, "error");
+      setUploadingImage(false);
+    }
+  };
+
   // Handle back navigation
   const handleBack = () => {
     navigate("/dashboard");
@@ -244,8 +359,156 @@ function ProductDetails() {
                   <i className="bi bi-pencil-square me-2"></i>
                   Product Information
                 </h5>
-                <p><strong>Product Name:</strong> {productName}</p>
-                <p><strong>Part Number:</strong> {partNumber}</p>
+                
+                {/* Product Basic Info and Image Section */}
+                <div className="row mb-4">
+                  <div className="col-md-8">
+                    <p><strong>Product Name:</strong> {productName}</p>
+                    <p><strong>Part Number:</strong> {partNumber}</p>
+                  </div>
+                  <div className="col-md-4">
+                    {/* Display product image if available */}
+                    {products.length > 0 && products[0].imageUrl ? (
+                      <div className="text-center">
+                        <img
+                          src={products[0].imageUrl}
+                          alt={productName}
+                          style={{ 
+                            maxWidth: "200px", 
+                            maxHeight: "200px", 
+                            objectFit: "cover",
+                            border: "1px solid #ddd",
+                            borderRadius: "8px",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                          }}
+                          className="img-fluid"
+                        />
+                        <p className="text-muted mt-2 small">Product Image</p>
+                        
+                        {/* Image Management Buttons - Only for admin/manager */}
+                        {(role === "admin" || role === "manager") && (
+                          <div className="mt-2">
+                            <button
+                              className="btn btn-sm btn-outline-primary me-2"
+                              onClick={() => setEditingImage(true)}
+                              disabled={uploadingImage}
+                            >
+                              <i className="bi bi-pencil me-1"></i>
+                              Edit Image
+                            </button>
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={removeProductImage}
+                              disabled={uploadingImage}
+                            >
+                              {uploadingImage ? (
+                                <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                              ) : (
+                                <i className="bi bi-trash me-1"></i>
+                              )}
+                              Remove Image
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center text-muted">
+                        <i className="bi bi-image" style={{ fontSize: "4rem", opacity: 0.3 }}></i>
+                        <p className="mt-2 small">No image available</p>
+                        
+                        {/* Add Image Button - Only for admin/manager */}
+                        {(role === "admin" || role === "manager") && (
+                          <button
+                            className="btn btn-sm btn-outline-success mt-2"
+                            onClick={() => setEditingImage(true)}
+                            disabled={uploadingImage}
+                          >
+                            <i className="bi bi-plus-circle me-1"></i>
+                            Add Image
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Image Upload/Edit Section */}
+                {editingImage && (role === "admin" || role === "manager") && (
+                  <div className="row mb-4">
+                    <div className="col-12">
+                      <div className="card">
+                        <div className="card-header">
+                          <h6 className="mb-0">
+                            <i className="bi bi-image me-2"></i>
+                            {products[0]?.imageUrl ? 'Update Product Image' : 'Add Product Image'}
+                          </h6>
+                        </div>
+                        <div className="card-body">
+                          <div className="mb-3">
+                            <label htmlFor="imageFile" className="form-label">Select New Image</label>
+                            <input
+                              id="imageFile"
+                              type="file"
+                              className="form-control"
+                              accept="image/*"
+                              onChange={handleImageSelect}
+                            />
+                            <small className="form-text text-muted">
+                              Maximum file size: 5MB. Supported formats: JPG, PNG, GIF
+                            </small>
+                          </div>
+                          
+                          {imagePreview && (
+                            <div className="mb-3">
+                              <label className="form-label">Preview</label>
+                              <div className="text-center">
+                                <img
+                                  src={imagePreview}
+                                  alt="Preview"
+                                  style={{ 
+                                    maxWidth: "200px", 
+                                    maxHeight: "200px", 
+                                    objectFit: "cover",
+                                    border: "1px solid #ddd",
+                                    borderRadius: "4px"
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className="d-flex gap-2">
+                            <button
+                              className="btn btn-primary"
+                              onClick={updateProductImage}
+                              disabled={!selectedImage || uploadingImage}
+                            >
+                              {uploadingImage ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="bi bi-check-circle me-1"></i>
+                                  {products[0]?.imageUrl ? 'Update Image' : 'Add Image'}
+                                </>
+                              )}
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={cancelImageEdit}
+                              disabled={uploadingImage}
+                            >
+                              <i className="bi bi-x-circle me-1"></i>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="table-responsive">
                   <table className="table table-striped table-hover">
