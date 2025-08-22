@@ -21,6 +21,7 @@ function ProductDetails() {
   // Quantity management states
   const [addQuantities, setAddQuantities] = useState({});
   const [replaceQuantities, setReplaceQuantities] = useState({});
+  const [reduceQuantities, setReduceQuantities] = useState({});
   
   // Product info
   const [productName, setProductName] = useState("");
@@ -148,6 +149,46 @@ function ProductDetails() {
     }
   };
 
+  // Handle reduce quantity
+  const handleReduceQuantity = async (productId, warehouseId) => {
+    const reduceAmount = parseInt(reduceQuantities[productId] || 0);
+    if (reduceAmount <= 0) {
+      showToast("Please enter a valid quantity to reduce", "error");
+      return;
+    }
+
+    const product = products.find(p => p.id === productId);
+    if (reduceAmount > product.quantity) {
+      showToast(`Cannot reduce by ${reduceAmount}. Current quantity is ${product.quantity}`, "error");
+      return;
+    }
+
+    try {
+      const productRef = doc(db, "products", productId);
+      const newQuantity = product.quantity - reduceAmount;
+      
+      await updateDoc(productRef, { quantity: newQuantity });
+      
+      // Log the change
+      await addDoc(collection(db, "stock_history"), {
+        productName: product.name,
+        partNumber: product.partNumber,
+        modelNo: product.modelNo,
+        warehouse: product.warehouse,
+        change: `-${reduceAmount}`,
+        user: auth.currentUser?.email || "Unknown",
+        timestamp: serverTimestamp(),
+      });
+      
+      // Clear the input
+      setReduceQuantities(prev => ({ ...prev, [productId]: "" }));
+      showToast(`Reduced ${reduceAmount} units from ${product.warehouse}`, "success");
+    } catch (error) {
+      console.error("Error reducing quantity:", error);
+      showToast(`Error reducing quantity: ${error.message}`, "error");
+    }
+  };
+
   // Handle back navigation
   const handleBack = () => {
     navigate("/dashboard");
@@ -214,6 +255,7 @@ function ProductDetails() {
                         <th>Warehouse</th>
                         <th>Quantity</th>
                         {(role === "admin" || role === "manager") && <th>Add Quantity</th>}
+                        {(role === "admin" || role === "manager") && <th>Reduce Quantity</th>}
                         {(role === "admin" || role === "manager") && <th>Replace Quantity</th>}
                       </tr>
                     </thead>
@@ -245,6 +287,28 @@ function ProductDetails() {
                                 >
                                   <i className="bi bi-plus-circle me-1"></i>
                                   Add
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                          {(role === "admin" || role === "manager") && (
+                            <td>
+                              <div className="d-flex gap-2 align-items-center">
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  placeholder="Enter amount"
+                                  value={reduceQuantities[product.id] || ""}
+                                  onChange={(e) => setReduceQuantities(prev => ({ ...prev, [product.id]: e.target.value }))}
+                                  style={{ width: "120px" }}
+                                />
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => handleReduceQuantity(product.id, product.warehouse)}
+                                  disabled={!reduceQuantities[product.id] || reduceQuantities[product.id] <= 0 || product.quantity <= 0}
+                                >
+                                  <i className="bi bi-dash-circle me-1"></i>
+                                  Reduce
                                 </button>
                               </div>
                             </td>
